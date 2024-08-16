@@ -69,10 +69,10 @@ struct OmniState
     hduVector3Dd joints;
     hduVector3Dd force; // 3 element double vector force[0], force[1], force[2]
     float thetas[7];
-    int buttons[2];
-    int buttons_prev[2];
-    int open_gripper;
-    int close_gripper;
+    int8_t buttons[2];
+    int8_t buttons_prev[2];
+    int8_t open_gripper;
+    int8_t close_gripper;
     hduVector3Dd lock_pos;
     double units_ratio;
 };
@@ -177,8 +177,8 @@ public:
         // Build the state msg
         omni_msgs::msg::OmniState state_msg;
         // Gripper
-        state_msg.open_gripper = bool(state->open_gripper);
-        state_msg.close_gripper = bool(state->close_gripper);
+        state_msg.open_gripper.data = state->open_gripper;
+        state_msg.close_gripper.data = state->close_gripper;
         // Position
         state_msg.pose.position.x = state->position[0];
         state_msg.pose.position.y = state->position[1];
@@ -255,14 +255,11 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
     feedback[2] = -omni_state->force[1];
     hdSetDoublev(HD_CURRENT_FORCE, feedback);
 
-    // Update button states
+    // Update open_gripper and close_gripper states based on button states
     int nButtons = 0;
     hdGetIntegerv(HD_CURRENT_BUTTONS, &nButtons);
-    omni_state->buttons[0] = (nButtons & HD_DEVICE_BUTTON_1) ? 1 : 0;
-    omni_state->buttons[1] = (nButtons & HD_DEVICE_BUTTON_2) ? 1 : 0;
-    // Update lock and close_gripper states based on button states
-    omni_state->open_gripper = omni_state->buttons[0];
-    omni_state->close_gripper = omni_state->buttons[1];
+    omni_state->open_gripper = (nButtons & HD_DEVICE_BUTTON_1) ? 1 : 0;
+    omni_state->close_gripper = (nButtons & HD_DEVICE_BUTTON_2) ? 1 : 0;
 
     hdEndFrame(hdGetCurrentDevice());
 
