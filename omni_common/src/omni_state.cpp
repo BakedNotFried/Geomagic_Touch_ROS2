@@ -71,8 +71,8 @@ struct OmniState
     float thetas[7];
     int buttons[2];
     int buttons_prev[2];
-    bool lock;
-    bool close_gripper;
+    int open_gripper;
+    int close_gripper;
     hduVector3Dd lock_pos;
     double units_ratio;
 };
@@ -96,7 +96,7 @@ public:
         node_->declare_parameter<std::string>("~omni_name", "omni");
         node_->declare_parameter<std::string>("~reference_frame", "/map");
         node_->declare_parameter<std::string>("~units", "m");
-        node_->declare_parameter<int>("~publish_rate", 1000);
+        node_->declare_parameter<int>("~publish_rate", 100);
         node_->get_parameter<std::string>("~omni_name", omni_name);
         node_->get_parameter<std::string>("~reference_frame", ref_frame);
         node_->get_parameter<std::string>("~units", units);
@@ -134,8 +134,6 @@ public:
         state->out_vel3 = zeros;  // 3x1 history of velocity
         state->pos_hist1 = zeros; // 3x1 history of position
         state->pos_hist2 = zeros; // 3x1 history of position
-        state->lock = false;
-        state->close_gripper = false;
         state->lock_pos = zeros;
         if (!units.compare("mm"))
             state->units_ratio = 1.0;
@@ -178,9 +176,9 @@ public:
     {
         // Build the state msg
         omni_msgs::msg::OmniState state_msg;
-        // Locked
-        state_msg.locked = state->lock;
-        state_msg.close_gripper = state->close_gripper;
+        // Gripper
+        state_msg.open_gripper = bool(state->open_gripper);
+        state_msg.close_gripper = bool(state->close_gripper);
         // Position
         state_msg.pose.position.x = state->position[0];
         state_msg.pose.position.y = state->position[1];
@@ -190,10 +188,10 @@ public:
         state_msg.pose.orientation.y = state->rot.v()[1];
         state_msg.pose.orientation.z = state->rot.v()[2];
         state_msg.pose.orientation.w = state->rot.s();
-        // Velocity
-        state_msg.velocity.x = state->velocity[0];
-        state_msg.velocity.y = state->velocity[1];
-        state_msg.velocity.z = state->velocity[2];
+        // // Velocity
+        // state_msg.velocity.x = state->velocity[0];
+        // state_msg.velocity.y = state->velocity[1];
+        // state_msg.velocity.z = state->velocity[2];
         // RPY
         state_msg.rpy.x = -state->thetas[4] + M_PI;
         state_msg.rpy.y = -state->thetas[5] - 3*M_PI/4;
@@ -201,23 +199,6 @@ public:
         // Time
         state_msg.header.stamp = node_->now();
         state_publisher->publish(state_msg);
-
-        if ((state->buttons[0] != state->buttons_prev[0]) or (state->buttons[1] != state->buttons_prev[1]))
-        {
-            if (state->buttons[0] == 1)
-            {
-                state->close_gripper = !(state->close_gripper);
-            }
-            if (state->buttons[1] == 1)
-            {
-                state->lock = !(state->lock);
-            }
-            omni_msgs::msg::OmniButtonEvent button_event;
-            button_event.grey_button = state->buttons[0];
-            button_event.white_button = state->buttons[1];
-            state->buttons_prev[0] = state->buttons[0];
-            state->buttons_prev[1] = state->buttons[1];
-        }
     }
 };
 
@@ -249,18 +230,18 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
                               0.0, 0.0, 0.0, 1.0);
     rotation_offset.getRotationMatrix(rotation_offset);
     omni_state->rot = hduQuaternion(rotation_offset * rotation);
-    // Velocity estimation
-    hduVector3Dd vel_buff(0, 0, 0);
-    vel_buff = (omni_state->position * 3 - 4 * omni_state->pos_hist1 + omni_state->pos_hist2) / 0.002;                                                                                                                                      //(units)/s, 2nd order backward dif
-    omni_state->velocity = (.2196 * (vel_buff + omni_state->inp_vel3) + .6588 * (omni_state->inp_vel1 + omni_state->inp_vel2)) / 1000.0 - (-2.7488 * omni_state->out_vel1 + 2.5282 * omni_state->out_vel2 - 0.7776 * omni_state->out_vel3); // cutoff freq of 20 Hz
-    omni_state->pos_hist2 = omni_state->pos_hist1;
-    omni_state->pos_hist1 = omni_state->position;
-    omni_state->inp_vel3 = omni_state->inp_vel2;
-    omni_state->inp_vel2 = omni_state->inp_vel1;
-    omni_state->inp_vel1 = vel_buff;
-    omni_state->out_vel3 = omni_state->out_vel2;
-    omni_state->out_vel2 = omni_state->out_vel1;
-    omni_state->out_vel1 = omni_state->velocity;
+    // // Velocity estimation
+    // hduVector3Dd vel_buff(0, 0, 0);
+    // vel_buff = (omni_state->position * 3 - 4 * omni_state->pos_hist1 + omni_state->pos_hist2) / 0.002;                                                                                                                                      //(units)/s, 2nd order backward dif
+    // omni_state->velocity = (.2196 * (vel_buff + omni_state->inp_vel3) + .6588 * (omni_state->inp_vel1 + omni_state->inp_vel2)) / 1000.0 - (-2.7488 * omni_state->out_vel1 + 2.5282 * omni_state->out_vel2 - 0.7776 * omni_state->out_vel3); // cutoff freq of 20 Hz
+    // omni_state->pos_hist2 = omni_state->pos_hist1;
+    // omni_state->pos_hist1 = omni_state->position;
+    // omni_state->inp_vel3 = omni_state->inp_vel2;
+    // omni_state->inp_vel2 = omni_state->inp_vel1;
+    // omni_state->inp_vel1 = vel_buff;
+    // omni_state->out_vel3 = omni_state->out_vel2;
+    // omni_state->out_vel2 = omni_state->out_vel1;
+    // omni_state->out_vel1 = omni_state->velocity;
 
     //~ // Set forces if locked
     //~ if (omni_state->lock == true) {
@@ -274,11 +255,14 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
     feedback[2] = -omni_state->force[1];
     hdSetDoublev(HD_CURRENT_FORCE, feedback);
 
-    // Get buttons
+    // Update button states
     int nButtons = 0;
     hdGetIntegerv(HD_CURRENT_BUTTONS, &nButtons);
     omni_state->buttons[0] = (nButtons & HD_DEVICE_BUTTON_1) ? 1 : 0;
     omni_state->buttons[1] = (nButtons & HD_DEVICE_BUTTON_2) ? 1 : 0;
+    // Update lock and close_gripper states based on button states
+    omni_state->open_gripper = omni_state->buttons[0];
+    omni_state->close_gripper = omni_state->buttons[1];
 
     hdEndFrame(hdGetCurrentDevice());
 
