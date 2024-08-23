@@ -96,7 +96,7 @@ public:
         node_->declare_parameter<std::string>("~omni_name", "omni");
         node_->declare_parameter<std::string>("~reference_frame", "/map");
         node_->declare_parameter<std::string>("~units", "m");
-        node_->declare_parameter<int>("~publish_rate", 100);
+        node_->declare_parameter<int>("~publish_rate", 60.0);
         node_->get_parameter<std::string>("~omni_name", omni_name);
         node_->get_parameter<std::string>("~reference_frame", ref_frame);
         node_->get_parameter<std::string>("~units", units);
@@ -151,7 +151,12 @@ public:
         }
         RCLCPP_INFO(node_->get_logger(), "PHaNTOM position given in [%s], ratio [%.1f]", units.c_str(), state->units_ratio);
         RCLCPP_INFO(rclcpp::get_logger("omni_haptic_node"), "Publishing PHaNTOM state at [%d] Hz", publish_rate);
-        pub_timer = node_->create_wall_timer(std::chrono::seconds(1/publish_rate), std::bind(&PhantomROS::publish_omni_state, this));
+        // Calculate the period in nanoseconds for 60Hz
+        auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::duration<double>(1.0 / 60.0));
+
+        // Create the timer with the calculated period
+        pub_timer = node_->create_wall_timer(period, std::bind(&PhantomROS::publish_omni_state, this));
     }
 
     /*******************************************************************************
